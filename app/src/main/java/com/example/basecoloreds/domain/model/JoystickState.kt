@@ -1,14 +1,10 @@
 package com.example.basecoloreds.domain.model
 
-import androidx.compose.ui.graphics.Color
-
 /**
- * Класс данных, описывающий состояние одной управляемой зоны экрана.
- *
- * @property baseColor Текущий базовый цвет половины экрана, полученный в результате вращения.
- * @property rotationAngle Текущий угол поворота виртуального джойстика в градусах (от 0 до 360).
+ * @param hue Оттенок цвета (0..360)
+ * @param saturation Насыщенность/пастельность (0.25..1.0). Исключает белый цвет.
  */
 data class JoystickState(
-    val baseColor: Color,
-    val rotationAngle: Float
+    val hue: Float,
+    val saturation: Float
 )

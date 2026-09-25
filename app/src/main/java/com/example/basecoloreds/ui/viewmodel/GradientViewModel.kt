@@ -1,83 +1,132 @@
 package com.example.basecoloreds.ui.viewmodel
 
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import com.example.basecoloreds.domain.model.JoystickState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.abs
 import kotlin.math.atan2
 
-/**
- * Архитектурный компонент ViewModel для управления состоянием градиентов половин экрана.
- * Отвечает за независимую обработку жестов и реактивное обновление цветов.
- */
 class GradientViewModel : ViewModel() {
 
-    // Начальный базовый цвет для обеих зон — глубокий темно-синий.
-    // При старте обе половины имеют одинаковый цвет, создавая сплошной однотонный фон.
-    private val defaultColor = Color(0xFF001F3F)
-
-    // Внутреннее изменяемое состояние верхней половины экрана
-    private val _topZoneState = MutableStateFlow(JoystickState(defaultColor, 0f))
-    // Открытое состояние для чтения интерфейсом (ReadOnly)
+    // Начальные цвета: Верх — зеленый (120°), Низ — красный (0°). Насыщенность максимальная.
+    private val _topZoneState = MutableStateFlow(JoystickState(120f, 1f))
     val topZoneState: StateFlow<JoystickState> = _topZoneState.asStateFlow()
 
-    // Внутреннее изменяемое состояние нижней половины экрана
-    private val _bottomZoneState = MutableStateFlow(JoystickState(defaultColor, 0f))
-    // Открытое состояние для чтения интерфейсом (ReadOnly)
+    private val _bottomZoneState = MutableStateFlow(JoystickState(0f, 1f))
     val bottomZoneState: StateFlow<JoystickState> = _bottomZoneState.asStateFlow()
 
+    // Глобальные параметры градиента
+    private val _gradientAngle = MutableStateFlow(90f) // Начальный горизонтальный раздел (угол 90)
+    val gradientAngle: StateFlow<Float> = _gradientAngle.asStateFlow()
+
+    // Смещение центральной точки по осям X и Y относительно центра экрана
+    private val _centerXOffset = MutableStateFlow(0f)
+    val centerXOffset: StateFlow<Float> = _centerXOffset.asStateFlow()
+
+    private val _centerYOffset = MutableStateFlow(0f)
+    val centerYOffset: StateFlow<Float> = _centerYOffset.asStateFlow()
+
+    // Состояние конечного автомата жестов
+    private var currentGestureMode = "NONE"
+    // Запоминаем, в какой зоне начался линейный жест (true — верх, false — низ)
+    private var initialZoneIsTop = true
+
+    fun resetGesture() {
+        currentGestureMode = "NONE"
+    }
+
     /**
-     * Вычисляет угол движения пальца относительно центра зоны и трансформирует его в цвет.
-     *
-     * @param isTopZone Флаг, определяющий какую половину экрана обновлять (true — верх, false — низ).
-     * @param dragX Текущая координата X пальца пользователя на экране.
-     * @param dragY Текущая координата Y пальца пользователя на экране.
-     * @param centerX Координата X геометрического центра этой половины экрана.
-     * @param centerY Координата Y геометрического центра этой половины экрана.
+     * Точка входа для обработки любого движения пальца
      */
-    fun updateJoystickPosition(
-        isTopZone: Boolean,
-        dragX: Float,
-        dragY: Float,
-        centerX: Float,
-        centerY: Float
+    fun handleMovement(
+        currentX: Float,
+        currentY: Float,
+        prevX: Float,
+        prevY: Float,
+        screenWidth: Float,
+        screenHeight: Float
     ) {
-        // 1. Вычисляем вектор смещения (расстояние от центра сферы до пальца)
-        val deltaX = dragX - centerX
-        val deltaY = dragY - centerY
+        val dx = currentX - prevX
+        val dy = currentY - prevY
 
-        // 2. Находим угол в радианах с помощью тригонометрического арктангенса
-        val radians = atan2(deltaY, deltaX)
+        // Фильтр QA: Игнорируем микро-смещения (тапы)
+        if (abs(dx) < 1f && abs(dy) < 1f) return
 
-        // 3. Переводим радианы в градусы (от -180 до 180)
-        var degrees = Math.toDegrees(radians.toDouble()).toFloat()
+        val halfHeight = screenHeight / 2f
+        val currentZoneIsTop = currentY < halfHeight
 
-        // 4. Нормализуем угол, чтобы значения были строго в диапазоне от 0 до 360 градусов
-        if (degrees < 0) {
-            degrees += 360f
+        // Определяем центр текущей полусферы для расчета углов вращения
+        val sphereCenterX = screenWidth / 2f
+        val sphereCenterY = if (currentZoneIsTop) screenHeight / 4f else screenHeight * 3f / 4f
+
+        val oldAngle = Math.toDegrees(atan2((prevY - sphereCenterY).toDouble(), (prevX - sphereCenterX).toDouble())).toFloat()
+        val newAngle = Math.toDegrees(atan2((currentY - sphereCenterY).toDouble(), (currentX - sphereCenterX).toDouble())).toFloat()
+        var deltaAngle = newAngle - oldAngle
+        if (deltaAngle > 180f) deltaAngle -= 360f
+        if (deltaAngle < -180f) deltaAngle += 360f
+
+        // 1. Инициализация режима при первом движении
+        if (currentGestureMode == "NONE") {
+            initialZoneIsTop = currentZoneIsTop
+
+            val absDx = abs(dx)
+            val absDy = abs(dy)
+            val absDeltaAngle = abs(deltaAngle)
+
+            currentGestureMode = when {
+                // Если есть явное вращение вокруг центра полусферы
+                absDeltaAngle > 1.5f && absDx > 1f && absDy > 1f -> "ROTATE"
+                // Строгий вертикальный вектор
+                absDy > absDx * 2.5f -> "VERTICAL"
+                // Строгий горизонтальный вектор
+                absDx > absDy * 2.5f -> "HORIZONTAL"
+                // Диагональное смещение
+                absDx > 0.8f * absDy && absDx < 1.2f * absDy -> "DIAGONAL"
+                else -> "NONE"
+            }
         }
 
-        // 5. Генерируем цвет на основе полученного угла через модель HSV.
-        // Параметр Hue (оттенок) принимает значения от 0 до 360, идеально ложась на наш круг.
-        val generatedColor = Color.hsv(
-            hue = degrees,
-            saturation = 0.85f,
-            value = 0.9f
-        )
+        // 2. Выполнение зафиксированного режима
+        when (currentGestureMode) {
+            "ROTATE" -> {
+                // Режим вращения поддерживает смену зон "на лету" (восьмерка)
+                val targetFlow = if (currentZoneIsTop) _topZoneState else _bottomZoneState
+                var nextHue = (targetFlow.value.hue + deltaAngle) % 360f
+                if (nextHue < 0) nextHue += 360f
+                targetFlow.value = targetFlow.value.copy(hue = nextHue)
+            }
 
-        // 6. Атомарно обновляем состояние нужной половины экрана через метод copy()
-        if (isTopZone) {
-            _topZoneState.value = _topZoneState.value.copy(
-                baseColor = generatedColor,
-                rotationAngle = degrees
-            )
-        } else {
-            _bottomZoneState.value = _bottomZoneState.value.copy(
-                baseColor = generatedColor,
-                rotationAngle = degrees
-            )
+            "VERTICAL" -> {
+                // Работает строго с той зоной, где начался жест. Другие изменения заблокированы.
+                val targetFlow = if (initialZoneIsTop) _topZoneState else _bottomZoneState
+                // Свайп вверх (dy < 0) -> размывает в пастель. Свайп вниз (dy > 0) -> делает сочным.
+                val step = 0.003f
+                val nextSaturation = (targetFlow.value.saturation + (dy * step)).coerceIn(0.25f, 1.0f)
+                targetFlow.value = targetFlow.value.copy(saturation = nextSaturation)
+            }
+
+            "HORIZONTAL" -> {
+                // Вращает линию градиента вокруг центра экрана. Свайп влево (dx < 0) -> по часовой.
+                val angleStep = 0.3f
+                var nextAngle = (_gradientAngle.value - (dx * angleStep)) % 360f
+                if (nextAngle < 0) nextAngle += 360f
+                _gradientAngle.value = nextAngle
+            }
+
+            "DIAGONAL" -> {
+                // Смещает центральную точку градиента. Ограничиваем движение радиусом в 250 пикселей.
+                val maxRadius = 250f
+                val potentialX = _centerXOffset.value + dx * 0.8f
+                val potentialY = _centerYOffset.value + dy * 0.8f
+
+                val distance = kotlin.math.sqrt(potentialX * potentialX + potentialY * potentialY)
+                if (distance <= maxRadius) {
+                    _centerXOffset.value = potentialX
+                    _centerYOffset.value = potentialY
+                }
+            }
         }
     }
 }
