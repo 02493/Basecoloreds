@@ -1,62 +1,64 @@
 package com.example.basecoloreds.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import com.example.basecoloreds.ui.components.GradientZone
 import com.example.basecoloreds.ui.viewmodel.GradientViewModel
+import kotlin.math.cos
+import kotlin.math.sin
 
-/**
- * Главный экран приложения. Разделяет рабочую область на две равные половины
- * и связывает их с бизнес-логикой управления цветами.
- *
- * @param viewModel Экземпляр архитектурного компонента для управления состояниями.
- */
 @Composable
 fun MainScreen(viewModel: GradientViewModel) {
-    // Реактивно подписываемся на изменения состояний обеих зон из ViewModel.
-    // При изменении StateFlow, Compose автоматически перерисует только нужную зону.
     val topState by viewModel.topZoneState.collectAsState()
     val bottomState by viewModel.bottomZoneState.collectAsState()
 
-    // Размещаем компоненты вертикально друг под другом на весь экран
-    Column(modifier = Modifier.fillMaxSize()) {
+    // 1. Вычисляем углы наклона для векторов градиента (из градусов в радианы)
+    val topRadians = Math.toRadians(topState.rotationAngle.toDouble()).toFloat()
+    val bottomRadians = Math.toRadians(bottomState.rotationAngle.toDouble()).toFloat()
 
-        // 1. Верхняя независимая половина экрана
+    // 2. Создаем единый многоточечный градиент на весь экран.
+    // Вместо ухода в черный цвет, верхний цвет плавно перетекает в нижний.
+    // Смещение Offset позволяет градиенту "крутиться" в зависимости от углов джойстиков.
+    val unifiedGradientBrush = Brush.linearGradient(
+        colors = listOf(topState.baseColor, bottomState.baseColor),
+        start = Offset(
+            x = 500f + 300f * cos(topRadians),
+            y = 500f + 300f * sin(topRadians)
+        ),
+        end = Offset(
+            x = 500f + 300f * cos(bottomRadians + Math.PI.toFloat()),
+            y = 1500f + 300f * sin(bottomRadians + Math.PI.toFloat())
+        )
+    )
+
+    // Применяем единый плавно сливающийся фон к общему контейнеру Column
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(unifiedGradientBrush)
+    ) {
+        // Верхняя прозрачная интерактивная зона
         GradientZone(
-            state = topState,
-            // Modifier.weight(1f) поровну делит пространство экрана между элементами Column
             modifier = Modifier.weight(1f),
             isTopZone = true,
             onAngleChanged = { dragX, dragY, centerX, centerY ->
-                // Передаем координаты жеста во ViewModel, указывая флаг верха (true)
-                viewModel.updateJoystickPosition(
-                    isTopZone = true,
-                    dragX = dragX,
-                    dragY = dragY,
-                    centerX = centerX,
-                    centerY = centerY
-                )
+                viewModel.updateJoystickPosition(true, dragX, dragY, centerX, centerY)
             }
         )
 
-        // 2. Нижняя независимая половина экрана
+        // Нижняя прозрачная интерактивная зона
         GradientZone(
-            state = bottomState,
             modifier = Modifier.weight(1f),
             isTopZone = false,
             onAngleChanged = { dragX, dragY, centerX, centerY ->
-                // Передаем координаты жеста во ViewModel, указывая флаг низа (false)
-                viewModel.updateJoystickPosition(
-                    isTopZone = false,
-                    dragX = dragX,
-                    dragY = dragY,
-                    centerX = centerX,
-                    centerY = centerY
-                )
+                viewModel.updateJoystickPosition(false, dragX, dragY, centerX, centerY)
             }
         )
     }
