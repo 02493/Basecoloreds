@@ -3,45 +3,28 @@ package com.example.basecoloreds
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.basecoloreds.ui.theme.BasecoloredsTheme
+import androidx.activity.viewModels
+import com.example.basecoloreds.ui.screens.MainScreen
+import com.example.basecoloreds.ui.viewmodel.GradientViewModel
 
+/**
+ * Точка входа в Android-приложение.
+ * Инициализирует архитектурные компоненты и задает корневой Compose-интерфейс.
+ */
 class MainActivity : ComponentActivity() {
+
+    // Инициализируем ViewModel через делегат by viewModels().
+    // Это гарантирует, что жизненный цикл ViewModel будет привязан к этой Activity,
+    // и данные не будут уничтожаться или сбрасываться при повороте экрана смартфона.
+    private val gradientViewModel: GradientViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        // setContent — это мост, который заменяет старую разметку XML на Jetpack Compose
         setContent {
-            BasecoloredsTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-            }
+            // Запускаем наш главный экран и передаем туда «мозг» приложения
+            MainScreen(viewModel = gradientViewModel)
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BasecoloredsTheme {
-        Greeting("Android")
     }
 }
