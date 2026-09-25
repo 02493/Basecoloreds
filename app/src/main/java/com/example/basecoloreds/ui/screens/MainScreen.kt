@@ -30,33 +30,35 @@ fun MainScreen(viewModel: GradientViewModel) {
     var screenWidth by remember { mutableStateOf(0f) }
     var screenHeight by remember { mutableStateOf(0f) }
 
-    // Конвертируем цвета. Значение яркости (Value) всегда 1.0f (черный исключен)
+    // Конвертируем цвета в HSV. Черный цвет полностью исключен.
     val topColor = Color.hsv(topState.hue, topState.saturation, 1.0f)
     val bottomColor = Color.hsv(bottomState.hue, bottomState.saturation, 1.0f)
 
-    // Математический расчет точек старта и финиша линии градиента вокруг динамического центра
+    // Переводим текущий угол вращения в радианы
     val angleRad = Math.toRadians(gradientAngle.toDouble()).toFloat()
 
-    // Базовый геометрический центр экрана плюс смещение от диагональных жестов
+    // Динамический центр нашей разделительной полосы градиента
     val dynamicCenterX = (screenWidth / 2f) + offsetX
     val dynamicCenterY = (screenHeight / 2f) + offsetY
 
-    // Длина вектора градиента (чтобы полностью перекрывать экран при вращении)
-    val vectorLength = screenHeight / 2f
+    // Координаты направления градиента (строго перпендикулярно невидимой линии раздела)
+    val gradientAngleRad = angleRad + (Math.PI.toFloat() / 2f)
+    val gradientLength = screenHeight / 2f
 
-    val startPoint = Offset(
-        x = dynamicCenterX - vectorLength * cos(angleRad),
-        y = dynamicCenterY - vectorLength * sin(angleRad)
+    val gradientStart = Offset(
+        x = dynamicCenterX - gradientLength * cos(gradientAngleRad),
+        y = dynamicCenterY - gradientLength * sin(gradientAngleRad)
     )
-    val endPoint = Offset(
-        x = dynamicCenterX + vectorLength * cos(angleRad),
-        y = dynamicCenterY + vectorLength * sin(angleRad)
+    val gradientEnd = Offset(
+        x = dynamicCenterX + gradientLength * cos(gradientAngleRad),
+        y = dynamicCenterY + gradientLength * sin(gradientAngleRad)
     )
 
+    // Отрисовываем единый бесшовный градиент на весь экран
     val unifiedGradientBrush = Brush.linearGradient(
         colors = listOf(topColor, bottomColor),
-        start = startPoint,
-        end = endPoint
+        start = gradientStart,
+        end = gradientEnd
     )
 
     var prevX by remember { mutableStateOf(0f) }
@@ -101,7 +103,6 @@ fun MainScreen(viewModel: GradientViewModel) {
                                     prevY = currentY
                                 }
                             } else {
-                                // Палец оторван — полностью сбрасываем залоченный режим автомата
                                 isDragging = false
                                 viewModel.resetGesture()
                             }

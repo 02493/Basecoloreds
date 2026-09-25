@@ -18,7 +18,7 @@ class GradientViewModel : ViewModel() {
     val bottomZoneState: StateFlow<JoystickState> = _bottomZoneState.asStateFlow()
 
     // Глобальные параметры градиента
-    private val _gradientAngle = MutableStateFlow(90f) // Начальный горизонтальный раздел (угол 90)
+    private val _gradientAngle = MutableStateFlow(0f) // Начальный горизонтальный раздел (угол 90)
     val gradientAngle: StateFlow<Float> = _gradientAngle.asStateFlow()
 
     // Смещение центральной точки по осям X и Y относительно центра экрана
